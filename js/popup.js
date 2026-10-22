@@ -1,5 +1,3 @@
-// popup.js (rewritten + cleaner + correct Reddit pagination)
-
 const DAY_NAMES = [
   "Monday",
   "Tuesday",
@@ -11,6 +9,11 @@ const DAY_NAMES = [
 ];
 const DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const WINDOW_DAYS = 28;
+const MIN_POST_AGE_HOURS = 48;
+const MAX_PAGES = 10;
+const MIN_POSTS_PER_SLOT = 5;
+const HOUR_MS = 60 * 60 * 1000;
 
 let subreddit = "";
 let chart = null;
@@ -69,14 +72,23 @@ function detectSubreddit() {
     const el = document.getElementById("subreddit");
     const btn = document.getElementById("analyzeBtn");
 
-    const match = url.match(/reddit\.com\/r\/([^/]+)/i);
-    if (!match) {
+    let name = "";
+    try {
+      const page = new URL(url);
+      if (["www.reddit.com", "old.reddit.com", "reddit.com"].includes(page.hostname)) {
+        const match = page.pathname.match(/^\/r\/([A-Za-z0-9_]+)(?:\/|$)/i);
+        name = match?.[1] || "";
+      }
+    } catch (_) {
+      // The active tab may not have a readable URL.
+    }
+    if (!name) {
       el.textContent = "Not a subreddit page";
       btn.disabled = true;
       return;
     }
 
-    subreddit = match[1];
+    subreddit = name;
     el.textContent = `r/${subreddit}`;
     btn.disabled = false;
   });
@@ -90,92 +102,96 @@ async function onAnalyze() {
   const results = document.getElementById("results");
   const heatmapContainer = document.getElementById("heatmap-container");
 
-  setLoading(true);
+  analyzeBtn.disabled = true;
+  loading.style.display = "block";
+  results.textContent = "";
+  heatmapContainer.style.display = "none";
 
   try {
-    // ✅ Better: use /top.json with limit=100 + after pagination
-    const posts = await fetchPosts(subreddit, {
-      pages: 6,
-      sort: "top",
-      t: "year",
-    });
-
-    const analysis = analyze(posts);
-    renderHeatmap(analysis);
+    const sample = await fetchPosts(subreddit);
+    const analysis = analyze(sample);
+    await renderHeatmap(analysis);
+    heatmapContainer.style.display = "block";
   } catch (err) {
     results.textContent = `Error: ${err?.message || String(err)}`;
   } finally {
-    setLoading(false);
-  }
-
-  function setLoading(isLoading) {
-    analyzeBtn.disabled = isLoading;
-    loading.style.display = isLoading ? "block" : "none";
-    results.textContent = "";
-    heatmapContainer.style.display = isLoading ? "none" : "block";
+    analyzeBtn.disabled = false;
+    loading.style.display = "none";
   }
 }
 
 /* ---------------------------- Reddit fetching ---------------------------- */
-async function fetchPosts(
-  subreddit,
-  { pages = 5, sort = "top", t = "year" } = {},
-) {
-  let posts = [];
+async function fetchPosts(subreddit, { nowMs = Date.now(), pages = MAX_PAGES } = {}) {
+  const windowStartMs = nowMs - WINDOW_DAYS * 24 * HOUR_MS;
+  const windowEndMs = nowMs - MIN_POST_AGE_HOURS * HOUR_MS;
+  const posts = [];
+  const seen = new Set();
   let after = null;
+  let coverageComplete = false;
 
   for (let i = 0; i < pages; i++) {
-    const base = `https://www.reddit.com/r/${subreddit}/${sort}.json`;
-
     const params = new URLSearchParams({ limit: "100" });
-    if (sort === "top") params.set("t", t);
     if (after) params.set("after", after);
 
-    const res = await fetch(`${base}?${params.toString()}`, {
-      headers: { "User-Agent": "RedditTimingAnalyzer/1.0" },
-    });
+    const res = await fetch(`https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?${params}`);
 
     if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`);
 
     const data = await res.json();
-    const children = data?.data?.children || [];
-    posts.push(...children);
+    if (!Array.isArray(data?.data?.children)) throw new Error("Unexpected Reddit response.");
+    const children = data.data.children;
+    let reachedWindowStart = false;
+    for (const child of children) {
+      const post = child?.data;
+      const createdMs = post?.created_utc * 1000;
+      if (!Number.isFinite(createdMs)) continue;
+      if (createdMs < windowStartMs) {
+        reachedWindowStart = true;
+        continue;
+      }
+      if (createdMs > windowEndMs || post.stickied || !Number.isFinite(post.score)) continue;
+      if (post.id && seen.has(post.id)) continue;
+      if (post.id) seen.add(post.id);
+      posts.push(post);
+    }
 
     after = data?.data?.after;
-    if (!after) break;
+    if (reachedWindowStart || !after || children.length === 0) {
+      // A full final page may be a listing cap rather than the end of the subreddit.
+      coverageComplete = reachedWindowStart || (!after && children.length < 100);
+      break;
+    }
   }
 
-  if (!posts.length)
-    throw new Error("No posts found or subreddit doesn't exist.");
-  return posts;
+  return { posts, coverageComplete, windowStartMs, windowEndMs };
 }
 /* ------------------------------------------------------------------------ */
 
 /* ------------------------------- Analysis -------------------------------- */
-function analyze(posts) {
+function analyze({ posts, coverageComplete, windowStartMs, windowEndMs }) {
   const buckets = Array.from({ length: 7 }, () =>
     Array.from({ length: 24 }, () => ({ scoreTotal: 0, count: 0 })),
   );
 
-  posts.forEach(({ data }) => {
-    const dt = new Date(data.created_utc * 1000);
+  posts.forEach((post) => {
+    const dt = new Date(post.created_utc * 1000);
     const day = dt.getUTCDay() === 0 ? 6 : dt.getUTCDay() - 1; // Monday=0 ... Sunday=6
     const hour = dt.getUTCHours();
 
-    buckets[day][hour].scoreTotal += data.score;
+    buckets[day][hour].scoreTotal += post.score;
     buckets[day][hour].count += 1;
   });
 
-  let bestDay = 0;
-  let bestHour = 0;
-  let maxAvg = 0;
+  let bestDay = null;
+  let bestHour = null;
+  let maxAvg = -Infinity;
 
   const stats = Array.from({ length: 7 }, (_, day) =>
     Array.from({ length: 24 }, (_, hour) => {
       const { scoreTotal, count } = buckets[day][hour];
-      const avg = count ? scoreTotal / count : 0;
+      const avg = count ? scoreTotal / count : null;
 
-      if (avg > maxAvg) {
+      if (coverageComplete && count >= MIN_POSTS_PER_SLOT && avg > maxAvg) {
         maxAvg = avg;
         bestDay = day;
         bestHour = hour;
@@ -186,20 +202,26 @@ function analyze(posts) {
 
   return {
     stats,
+    counts: buckets.map((day) => day.map((slot) => slot.count)),
     bestDay,
     bestHour,
     maxAvg,
     totalPosts: posts.length,
+    oldestPostMs: posts.length ? Math.min(...posts.map((p) => p.created_utc * 1000)) : null,
+    newestPostMs: posts.length ? Math.max(...posts.map((p) => p.created_utc * 1000)) : null,
+    coverageComplete,
+    windowStartMs,
+    windowEndMs,
   };
 }
 /* ------------------------------------------------------------------------ */
 
 /* ------------------------------- Render ---------------------------------- */
-function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
-  const results = document.getElementById("results");
+async function renderHeatmap({
+  stats, counts, bestDay, bestHour, maxAvg, totalPosts,
+  oldestPostMs, newestPostMs, coverageComplete, windowStartMs, windowEndMs,
+}) {
   const bestTimeInfo = document.getElementById("bestTimeInfo");
-
-  results.innerHTML = "";
 
   const ranges = buildRanges(stats);
 
@@ -207,7 +229,7 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     name: day,
     data: HOURS.map((hour) => ({
       x: `${hour.toString().padStart(2, "0")}:00`,
-      y: stats[dayIndex][hour],
+      y: stats[dayIndex][hour] ?? 0,
     })),
   }));
 
@@ -223,7 +245,6 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     },
     dataLabels: { enabled: false },
 
-    // ✅ Exact colors: remove `colors` and disable shades
     plotOptions: {
       heatmap: {
         radius: 4,
@@ -235,7 +256,7 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
 
     xaxis: {
       type: "category",
-      categories: HOURS.map(String),
+      categories: HOURS.map((hour) => `${String(hour).padStart(2, "0")}:00`),
       labels: {
         style: { fontSize: "10px", colors: "#000" },
       },
@@ -256,14 +277,16 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     grid: { show: false },
 
     tooltip: {
-      custom: ({ series, seriesIndex, dataPointIndex }) => {
+      custom: ({ seriesIndex, dataPointIndex }) => {
         const day = DAY_NAMES[seriesIndex];
         const hour = HOURS[dataPointIndex];
-        const value = series[seriesIndex][dataPointIndex];
+        const count = counts[seriesIndex][dataPointIndex];
+        const value = stats[seriesIndex][dataPointIndex];
         return `
           <div class="heatmap-tooltip">
             <div class="tooltip-header">${day} ${hour.toString().padStart(2, "0")}:00 UTC</div>
-            <div class="tooltip-value">Avg Score: ${Number(value).toFixed(2)}</div>
+            <div class="tooltip-value">Average score: ${count ? value.toFixed(2) : "No data"}</div>
+            <div>Posts: ${count}</div>
           </div>
         `;
       },
@@ -276,25 +299,62 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     },
 
     subtitle: {
-      text: "Average post score by day and hour (UTC)",
+      text: "Average score by day and hour (UTC); hover for post count",
       align: "center",
       style: { fontSize: "12px", color: "#000" },
     },
   };
 
   if (typeof ApexCharts === "undefined") {
-    alert("Chart library failed to load. Please check your extension files.");
-    return;
+    throw new Error("Chart library failed to load.");
   }
 
   chart = new ApexCharts(document.querySelector("#heatmap-chart"), options);
-  chart.render();
+  await chart.render();
 
-  bestTimeInfo.innerHTML = `
-    <strong>Best Time to Post:</strong> ${DAY_NAMES[bestDay]} at ${bestHour.toString().padStart(2, "0")}:00 UTC<br>
-    <strong>Average Score:</strong> ${maxAvg.toFixed(2)} points<br>
-    <strong>Posts Analyzed:</strong> ${totalPosts.toLocaleString()}<br>
-    <small>Based on analysis of recent top posts in r/${subreddit}</small>
-  `;
+  renderHourlyTable(stats, counts);
+  const actualRange = oldestPostMs === null
+    ? "No eligible posts fetched"
+    : `${formatUtc(oldestPostMs)} to ${formatUtc(newestPostMs)}`;
+  let recommendation;
+  if (!coverageComplete) {
+    recommendation = "No recommendation: the available listing did not cover the full 28-day window.";
+  } else if (bestDay === null) {
+    recommendation = `No recommendation: fewer than ${MIN_POSTS_PER_SLOT} posts in every day/hour slot.`;
+  } else {
+    recommendation = `Best among sampled recent posts: ${DAY_NAMES[bestDay]} at ${String(bestHour).padStart(2, "0")}:00 UTC (${maxAvg.toFixed(2)} average score from ${counts[bestDay][bestHour]} posts).`;
+  }
+  bestTimeInfo.textContent = [
+    recommendation,
+    `Posts analyzed: ${totalPosts.toLocaleString()}`,
+    `Window: ${WINDOW_DAYS} days, excluding posts newer than ${MIN_POST_AGE_HOURS} hours (${formatUtc(windowStartMs)} to ${formatUtc(windowEndMs)}).`,
+    `Actual post dates: ${actualRange}.`,
+    coverageComplete
+      ? "Sampled from the new listing; posting time does not prove causation."
+      : "Partial sample: high activity can exhaust the accessible listing before the full window is covered.",
+  ].join("\n");
+}
+
+function formatUtc(timestamp) {
+  return `${new Date(timestamp).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function renderHourlyTable(stats, counts) {
+  const body = document.getElementById("hourly-table-body");
+  body.replaceChildren();
+  HOURS.forEach((hour) => {
+    const row = document.createElement("tr");
+    const heading = document.createElement("th");
+    heading.scope = "row";
+    heading.textContent = `${String(hour).padStart(2, "0")}:00`;
+    row.appendChild(heading);
+    DAY_NAMES.forEach((_, day) => {
+      const cell = document.createElement("td");
+      const count = counts[day][hour];
+      cell.textContent = count ? `${stats[day][hour].toFixed(1)} · ${count}` : "— · 0";
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+  });
 }
 /* ------------------------------------------------------------------------ */

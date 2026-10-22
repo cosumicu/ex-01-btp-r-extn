@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="css/popup.css" />
-    <!-- REMOVED: <link rel="stylesheet" href="css/apexcharts.css" /> -->
     <title>Reddit Post Timing Analyzer</title>
   </head>
   <body>
@@ -22,15 +21,27 @@
         Analyzing posts...
       </div>
       <div id="results"></div>
-      <!-- Heatmap Container -->
       <div id="heatmap-container" style="display: none">
         <div id="heatmap-chart"></div>
+        <details class="hourly-details">
+          <summary>View all hourly averages and post counts</summary>
+          <p>Each cell shows average score · number of posts. Times are UTC.</p>
+          <div class="hourly-table-wrap">
+            <table>
+              <thead>
+                <tr><th scope="col">Hour</th><th scope="col">Mon</th><th scope="col">Tue</th><th scope="col">Wed</th><th scope="col">Thu</th><th scope="col">Fri</th><th scope="col">Sat</th><th scope="col">Sun</th></tr>
+              </thead>
+              <tbody id="hourly-table-body"></tbody>
+            </table>
+          </div>
+        </details>
         <div class="heatmap-info">
           <div class="heatmap-legend">
-            <span class="legend-label">Low Engagement</span>
+            <span class="legend-label">Lower Average</span>
             <div class="legend-gradient"></div>
-            <span class="legend-label">High Engagement</span>
+            <span class="legend-label">Higher Average</span>
           </div>
+          <p class="heatmap-note">Gray cells may have no sampled posts; check their counts.</p>
           <div class="stats">
             <p id="bestTimeInfo"></p>
           </div>
@@ -38,7 +49,6 @@
       </div>
     </div>
 
-    <!-- CHANGED: Use local file instead of CDN -->
     <script src="js/apexcharts.min.js"></script>
     <script src="js/popup.js"></script>
   </body>
