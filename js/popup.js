@@ -86,7 +86,8 @@ async function onAnalyze() {
   if (!subreddit) return alert("No subreddit detected!");
 
   const analyzeBtn = document.getElementById("analyzeBtn");
-  const loading = document.getElementById("loading");
+  const analyzeBtnLabel = document.getElementById("analyzeBtnLabel");
+  const spinner = analyzeBtn.querySelector(".button-spinner");
   const results = document.getElementById("results");
   const heatmapContainer = document.getElementById("heatmap-container");
 
@@ -110,8 +111,10 @@ async function onAnalyze() {
 
   function setLoading(isLoading) {
     analyzeBtn.disabled = isLoading;
-    loading.style.display = isLoading ? "block" : "none";
-    results.textContent = "";
+    analyzeBtn.setAttribute("aria-busy", String(isLoading));
+    analyzeBtnLabel.textContent = isLoading ? "Analyzing..." : "Analyze";
+    spinner.hidden = !isLoading;
+    if (isLoading) results.textContent = "";
     heatmapContainer.style.display = isLoading ? "none" : "block";
   }
 }

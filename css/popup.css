@@ -113,6 +113,33 @@ body {
   cursor: not-allowed;
 }
 
+#analyzeBtn[aria-busy="true"] {
+  background: linear-gradient(100deg, #ff5e78, #ff4b6c);
+  cursor: progress;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinner-rotate 0.75s linear infinite;
+}
+
+.button-spinner[hidden] {
+  display: none;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-spinner { animation: none; }
+}
+
 .analyze-icon {
   display: flex;
   align-items: flex-end;
@@ -129,13 +156,6 @@ body {
 .analyze-icon i:nth-child(1) { height: 8px; }
 .analyze-icon i:nth-child(2) { height: 16px; }
 .analyze-icon i:nth-child(3) { height: 11px; }
-
-.loading {
-  text-align: center;
-  padding: 10px;
-  color: #666;
-  font-style: italic;
-}
 
 #heatmap-container {
   margin-top: 10px;
