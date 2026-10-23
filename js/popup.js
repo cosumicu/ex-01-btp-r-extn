@@ -195,6 +195,12 @@ function analyze(posts) {
 /* ------------------------------------------------------------------------ */
 
 /* ------------------------------- Render ---------------------------------- */
+function squareHeatmapCells() {
+  document
+    .querySelectorAll("#heatmap-chart .apexcharts-heatmap-rect")
+    .forEach((cell) => cell.setAttribute("height", cell.getAttribute("width")));
+}
+
 function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
   const results = document.getElementById("results");
   const bestTimeInfo = document.getElementById("bestTimeInfo");
@@ -216,10 +222,11 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
   const options = {
     series,
     chart: {
-      height: 275,
+      height: 262,
       type: "heatmap",
       toolbar: { show: false },
-      animations: { enabled: true, speed: 800 },
+      animations: { enabled: false },
+      events: { updated: squareHeatmapCells },
     },
     dataLabels: { enabled: false },
 
@@ -250,7 +257,7 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     yaxis: {
       labels: {
         align: "left",
-        offsetX: 30,
+        offsetX: 20,
         style: { fontSize: "12px", fontWeight: 400, colors: "#000" },
       },
     },
@@ -290,7 +297,7 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
   }
 
   chart = new ApexCharts(document.querySelector("#heatmap-chart"), options);
-  chart.render();
+  chart.render().then(squareHeatmapCells);
 
   bestTimeInfo.innerHTML = `
     <strong>Best Time to Post:</strong> ${DAY_NAMES[bestDay]} at ${bestHour.toString().padStart(2, "0")}:00 UTC<br>
