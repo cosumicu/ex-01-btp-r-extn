@@ -13,15 +13,17 @@
     </div>
 
     <div class="c-1">
-      <div class="controls-row">
-        <div class="subreddit-info">
-          <p>Subreddit:</p>
-          <p id="subreddit">Loading...</p>
+      <div class="hero">
+        <div class="controls-row">
+          <div class="subreddit-info">
+            <p>Subreddit:</p>
+            <p id="subreddit">Loading...</p>
+          </div>
+          <button id="analyzeBtn" type="button">
+            <span class="button-spinner" hidden aria-hidden="true"></span>
+            <span id="analyzeBtnLabel">Analyze</span>
+          </button>
         </div>
-        <button id="analyzeBtn" type="button">
-          <span class="button-spinner" hidden aria-hidden="true"></span>
-          <span id="analyzeBtnLabel">Analyze</span>
-        </button>
       </div>
       <div id="results"></div>
       <!-- Heatmap Container -->
@@ -38,6 +40,27 @@
           </div>
         </div>
       </div>
+      <section id="evidence-cards" class="evidence-cards" style="display: none" aria-label="Recommendation details">
+        <div class="evidence-card">
+          <span>Posts at this time</span>
+          <strong id="slot-post-count"></strong>
+        </div>
+        <div class="evidence-card">
+          <span>Median score</span>
+          <strong id="slot-median-score"></strong>
+          <small id="slot-score-note" hidden>Need 3+ posts</small>
+        </div>
+        <div class="evidence-card">
+          <span>Median comments</span>
+          <strong id="slot-median-comments"></strong>
+          <small id="slot-comments-note" hidden>Need 3+ posts</small>
+        </div>
+        <div class="evidence-card">
+          <span>Alternative time</span>
+          <strong id="alternative-time"></strong>
+          <small id="alternative-post-count"></small>
+        </div>
+      </section>
       <div id="comments-chart-container" style="display: none">
         <div id="comments-chart"></div>
       </div>

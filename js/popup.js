@@ -91,6 +91,7 @@ async function onAnalyze() {
   const spinner = analyzeBtn.querySelector(".button-spinner");
   const results = document.getElementById("results");
   const heatmapContainer = document.getElementById("heatmap-container");
+  const evidenceCards = document.getElementById("evidence-cards");
   const commentsChartContainer = document.getElementById("comments-chart-container");
 
   setLoading(true);
@@ -107,9 +108,11 @@ async function onAnalyze() {
     heatmapContainer.style.display = "block";
     commentsChartContainer.style.display = "block";
     renderHeatmap(analysis);
+    renderEvidenceCards(posts, analysis);
     renderCommentsAreaChart(posts);
   } catch (err) {
     heatmapContainer.style.display = "none";
+    evidenceCards.style.display = "none";
     commentsChartContainer.style.display = "none";
     results.textContent = `Error: ${err?.message || String(err)}`;
   } finally {
@@ -124,6 +127,7 @@ async function onAnalyze() {
     if (isLoading) results.textContent = "";
     if (isLoading) {
       heatmapContainer.style.display = "none";
+      evidenceCards.style.display = "none";
       commentsChartContainer.style.display = "none";
     }
   }
@@ -163,6 +167,42 @@ async function fetchPosts(
   return posts;
 }
 /* ------------------------------------------------------------------------ */
+
+function renderEvidenceCards(posts, { bestDay, bestHour, alternativeTime }) {
+  const matchingPosts = posts
+    .map(({ data }) => data)
+    .filter((data) => {
+      const date = new Date(data.created_utc * 1000);
+      const day = (date.getUTCDay() + 6) % 7;
+      return day === bestDay && date.getUTCHours() === bestHour;
+    });
+  const scores = matchingPosts
+    .map((data) => data.score)
+    .filter(Number.isFinite);
+  const comments = matchingPosts
+    .map((data) => data.num_comments)
+    .filter(Number.isFinite);
+  const formatMedian = (values) =>
+    values.length >= 3
+      ? percentile(values, 0.5).toLocaleString(undefined, { maximumFractionDigits: 1 })
+      : "—";
+
+  document.getElementById("slot-post-count").textContent =
+    matchingPosts.length.toLocaleString();
+  document.getElementById("slot-median-score").textContent =
+    formatMedian(scores);
+  document.getElementById("slot-median-comments").textContent =
+    formatMedian(comments);
+  document.getElementById("slot-score-note").hidden = scores.length >= 3;
+  document.getElementById("slot-comments-note").hidden = comments.length >= 3;
+  document.getElementById("alternative-time").textContent = alternativeTime
+    ? `${DAY_ABBR[alternativeTime.day]} · ${alternativeTime.hour.toString().padStart(2, "0")}:00 UTC`
+    : "Unavailable";
+  document.getElementById("alternative-post-count").textContent = alternativeTime
+    ? `Based on ${alternativeTime.count.toLocaleString()} ${alternativeTime.count === 1 ? "post" : "posts"}`
+    : "No other supported time";
+  document.getElementById("evidence-cards").style.display = "grid";
+}
 
 function buildHourlyCommentMedians(posts) {
   const commentsByHour = Array.from({ length: 24 }, () => []);
@@ -282,29 +322,33 @@ function analyze(posts) {
     buckets[day][hour].count += 1;
   });
 
-  let bestDay = 0;
-  let bestHour = 0;
-  let maxAvg = 0;
+  // Prefer a time supported by at least three posts when the sample allows it.
+  const minimumCount = [3, 2, 1].find((threshold) =>
+    buckets.some((row) => row.some(({ count }) => count >= threshold)),
+  );
+  const eligibleSlots = [];
 
   const stats = Array.from({ length: 7 }, (_, day) =>
     Array.from({ length: 24 }, (_, hour) => {
       const { scoreTotal, count } = buckets[day][hour];
       const avg = count ? scoreTotal / count : 0;
 
-      if (avg > maxAvg) {
-        maxAvg = avg;
-        bestDay = day;
-        bestHour = hour;
-      }
+      if (count >= minimumCount) eligibleSlots.push({ day, hour, avg, count });
       return avg;
     }),
   );
 
+  eligibleSlots.sort(
+    (a, b) => b.avg - a.avg || b.count - a.count || a.day - b.day || a.hour - b.hour,
+  );
+  const [bestTime, alternativeTime] = eligibleSlots;
+
   return {
     stats,
-    bestDay,
-    bestHour,
-    maxAvg,
+    bestDay: bestTime.day,
+    bestHour: bestTime.hour,
+    maxAvg: bestTime.avg,
+    alternativeTime,
     totalPosts: posts.length,
   };
 }
