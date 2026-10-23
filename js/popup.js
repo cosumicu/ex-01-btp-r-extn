@@ -48,10 +48,10 @@ function buildRanges(stats) {
 
   return [
     { from: 0, to: a, color: "#f0f0f0", name: "Low" },
-    { from: a, to: b, color: "#FEC5F6", name: "Medium" },
-    { from: b, to: c, color: "#DB8DD0", name: "High" },
-    { from: c, to: d, color: "#C562AF", name: "Very High" },
-    { from: d, to: Number.MAX_SAFE_INTEGER, color: "#B33791", name: "Top" },
+    { from: a, to: b, color: "#f7c4c4", name: "Medium" },
+    { from: b, to: c, color: "#e98e8e", name: "High" },
+    { from: c, to: d, color: "#d45152", name: "Very High" },
+    { from: d, to: Number.MAX_SAFE_INTEGER, color: "#b31718", name: "Top" },
   ];
 }
 /* ------------------------------------------------------------------------ */
