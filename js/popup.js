@@ -14,6 +14,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 let subreddit = "";
 let chart = null;
+let commentsChart = null;
 
 /* ------------------------ Heatmap scaling helpers ------------------------ */
 const EPS = 0.0001;
@@ -90,6 +91,7 @@ async function onAnalyze() {
   const spinner = analyzeBtn.querySelector(".button-spinner");
   const results = document.getElementById("results");
   const heatmapContainer = document.getElementById("heatmap-container");
+  const commentsChartContainer = document.getElementById("comments-chart-container");
 
   setLoading(true);
 
@@ -102,8 +104,13 @@ async function onAnalyze() {
     });
 
     const analysis = analyze(posts);
+    heatmapContainer.style.display = "block";
+    commentsChartContainer.style.display = "block";
     renderHeatmap(analysis);
+    renderCommentsAreaChart(posts);
   } catch (err) {
+    heatmapContainer.style.display = "none";
+    commentsChartContainer.style.display = "none";
     results.textContent = `Error: ${err?.message || String(err)}`;
   } finally {
     setLoading(false);
@@ -115,7 +122,10 @@ async function onAnalyze() {
     analyzeBtnLabel.textContent = isLoading ? "Analyzing..." : "Analyze";
     spinner.hidden = !isLoading;
     if (isLoading) results.textContent = "";
-    heatmapContainer.style.display = isLoading ? "none" : "block";
+    if (isLoading) {
+      heatmapContainer.style.display = "none";
+      commentsChartContainer.style.display = "none";
+    }
   }
 }
 
@@ -153,6 +163,109 @@ async function fetchPosts(
   return posts;
 }
 /* ------------------------------------------------------------------------ */
+
+function buildHourlyCommentMedians(posts) {
+  const commentsByHour = Array.from({ length: 24 }, () => []);
+
+  posts.forEach(({ data }) => {
+    const hour = new Date(data.created_utc * 1000).getUTCHours();
+    const comments = data.num_comments;
+    if (Number.isInteger(hour) && Number.isFinite(comments) && comments >= 0) {
+      commentsByHour[hour].push(comments);
+    }
+  });
+
+  return {
+    medians: commentsByHour.map((values) =>
+      values.length ? percentile(values, 0.5) : null,
+    ),
+    counts: commentsByHour.map((values) => values.length),
+  };
+}
+
+function renderCommentsAreaChart(posts) {
+  const { medians, counts } = buildHourlyCommentMedians(posts);
+
+  if (commentsChart) commentsChart.destroy();
+
+  commentsChart = new ApexCharts(document.querySelector("#comments-chart"), {
+    series: [{ name: "Median comments", data: medians }],
+    chart: {
+      height: 235,
+      type: "area",
+      fontFamily: "Inter, sans-serif",
+      toolbar: { show: false },
+      animations: { enabled: false },
+      zoom: { enabled: false },
+    },
+    colors: ["#b31718"],
+    dataLabels: { enabled: false },
+    stroke: { curve: "smooth", width: 2 },
+    fill: {
+      type: "gradient",
+      gradient: {
+        type: "vertical",
+        shadeIntensity: 0,
+        inverseColors: false,
+        opacityFrom: 0.55,
+        opacityTo: 0.14,
+        stops: [0, 100],
+      },
+    },
+    markers: { size: 0, hover: { size: 5 } },
+    legend: { show: false },
+    grid: { borderColor: "#eceff2", strokeDashArray: 3 },
+    xaxis: {
+      categories: HOURS.map(String),
+      labels: {
+        formatter: (value) => (Number(value) % 4 === 0 ? value : ""),
+        style: { fontSize: "10px", colors: "#667085" },
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      title: {
+        text: "Posting hour (UTC)",
+        style: { fontSize: "11px", fontWeight: 500, color: "#667085" },
+      },
+      tooltip: { enabled: false },
+    },
+    yaxis: {
+      min: 0,
+      tickAmount: 4,
+      labels: {
+        formatter: (value) => Math.round(value).toLocaleString(),
+        style: { fontSize: "10px", colors: "#667085" },
+      },
+    },
+    tooltip: {
+      custom: ({ dataPointIndex }) => {
+        if (dataPointIndex < 0) return "";
+        const median = medians[dataPointIndex];
+        const count = counts[dataPointIndex];
+        return `
+          <div class="heatmap-tooltip">
+            <div class="tooltip-header">${HOURS[dataPointIndex].toString().padStart(2, "0")}:00 UTC</div>
+            <div class="tooltip-value">Median comments: ${median === null ? "No data" : median.toLocaleString()}</div>
+            <div class="tooltip-meta">${count} top ${count === 1 ? "post" : "posts"}</div>
+          </div>
+        `;
+      },
+    },
+    title: {
+      text: "Discussion by Posting Hour",
+      align: "center",
+      style: { fontSize: "16px", fontWeight: 600, color: "#000" },
+    },
+    subtitle: {
+      text: "Median current comments on top posts (past year)",
+      align: "center",
+      style: { fontSize: "12px", color: "#000" },
+    },
+    noData: { text: "No comment data available" },
+  });
+
+  commentsChart.render();
+}
 
 /* ------------------------------- Analysis -------------------------------- */
 function analyze(posts) {

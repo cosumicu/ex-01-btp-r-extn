@@ -180,6 +180,15 @@ body {
   width: 500px;
 }
 
+#comments-chart-container {
+  width: 500px;
+  margin-top: 12px;
+  padding: 15px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 #heatmap-chart {
   margin-bottom: 10px;
 }
@@ -273,4 +282,9 @@ body {
 .tooltip-value {
   color: var(--accent);
   font-weight: 600;
+}
+
+.tooltip-meta {
+  margin-top: 4px;
+  color: #667085;
 }
