@@ -13,67 +13,114 @@ body {
 
 .c-0 {
   width: 100%;
-  padding: 15px;
-  background-color: #ff2e51;
+  min-height: 54px;
+  padding: 14px 20px;
+  background-color: #fff;
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: white;
-  font-weight: bold;
+  border-bottom: 1px solid #e9e8eb;
 }
 
-.c-0 img {
-  height: 40px;
-  width: 40px;
-  border-radius: 50%;
+.c-0 h3 {
+  color: #1d2430;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .c-1 {
   padding: 15px;
 }
 
+.controls-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
 .subreddit-info {
   display: flex;
+  flex: 1;
   align-items: center;
+  min-width: 0;
   gap: 8px;
-  margin-bottom: 15px;
-  padding: 10px;
+  padding: 4px 6px 4px 8px;
   background-color: white;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8e9ed;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(30, 35, 50, 0.05);
 }
 
 .subreddit-info p:first-child {
-  font-weight: 600;
-  color: #666;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 #subreddit {
-  font-weight: bold;
-  color: #ff5c77;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  color: #ff3158;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #analyzeBtn {
-  width: 100%;
-  padding: 12px;
-  background-color: #ff5c77;
+  flex: 0 0 185px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 10px;
+  background: linear-gradient(100deg, #ff5e78, #ff4b6c);
   color: white;
   border: none;
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: 9px;
+  box-shadow: 0 4px 10px rgba(255, 75, 108, 0.14);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.2s;
-  margin-bottom: 15px;
+  transition: filter 0.2s;
 }
 
 #analyzeBtn:hover {
-  background-color: #ff5c77;
+  filter: brightness(0.97);
 }
 
 #analyzeBtn:disabled {
-  background-color: #ccc;
+  background: #ccc;
+  box-shadow: none;
   cursor: not-allowed;
 }
+
+.analyze-icon {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+}
+
+.analyze-icon i {
+  width: 4px;
+  border-radius: 3px;
+  background-color: currentColor;
+}
+
+.analyze-icon i:nth-child(1) { height: 8px; }
+.analyze-icon i:nth-child(2) { height: 16px; }
+.analyze-icon i:nth-child(3) { height: 11px; }
 
 .loading {
   text-align: center;

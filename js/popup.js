@@ -252,6 +252,7 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
+      tooltip: { enabled: false },
     },
 
     yaxis: {
