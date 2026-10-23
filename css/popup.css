@@ -150,6 +150,33 @@ body {
   margin-bottom: 10px;
 }
 
+#heatmap-chart .apexcharts-legend {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  overflow: visible;
+  transform: translateY(-8px);
+}
+
+#heatmap-chart .apexcharts-legend-series {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 !important;
+  line-height: 1;
+}
+
+#heatmap-chart .apexcharts-legend-marker {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  top: 0 !important;
+}
+
+#heatmap-chart .apexcharts-legend-text {
+  margin-left: 0 !important;
+  line-height: 1;
+}
+
 .heatmap-info {
   padding-top: 10px;
   border-top: 1px solid #eee;
