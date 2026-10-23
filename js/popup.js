@@ -249,7 +249,9 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
 
     yaxis: {
       labels: {
-        style: { fontSize: "12px", fontWeight: 600, colors: "#000" },
+        align: "left",
+        offsetX: 30,
+        style: { fontSize: "12px", fontWeight: 400, colors: "#000" },
       },
     },
 
