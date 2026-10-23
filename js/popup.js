@@ -224,11 +224,16 @@ function renderHeatmap({ stats, bestDay, bestHour, maxAvg, totalPosts }) {
     chart: {
       height: 262,
       type: "heatmap",
+      fontFamily: "Inter, sans-serif",
       toolbar: { show: false },
       animations: { enabled: false },
       events: { updated: squareHeatmapCells },
     },
     dataLabels: { enabled: false },
+    states: {
+      hover: { filter: { type: "none" } },
+      active: { filter: { type: "none" } },
+    },
 
     // ✅ Exact colors: remove `colors` and disable shades
     plotOptions: {
