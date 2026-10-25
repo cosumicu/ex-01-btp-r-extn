@@ -79,6 +79,44 @@ body {
   gap: 10px;
 }
 
+.community-stats {
+  width: 500px;
+  min-height: 82px;
+  margin-bottom: 15px;
+  padding: 12px 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: #fff;
+  border: 1px solid #e8e9ed;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(30, 35, 50, 0.06);
+}
+
+.community-stats div {
+  min-width: 0;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.community-stats div + div {
+  border-left: 1px solid #e8e9ed;
+}
+
+.community-stats span {
+  color: #334155;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.community-stats strong {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 21px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
 .subreddit-info {
   display: flex;
   align-items: center;

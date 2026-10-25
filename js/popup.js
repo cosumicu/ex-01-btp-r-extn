@@ -70,9 +70,10 @@ function detectSubreddit() {
     const el = document.getElementById("subreddit");
     const btn = document.getElementById("analyzeBtn");
 
-    const match = url.match(/reddit\.com\/r\/([^/]+)/i);
+    const match = url.match(/reddit\.com\/r\/([^/?#]+)/i);
     if (!match) {
       el.textContent = "Not a subreddit page";
+      document.getElementById("follower-count").textContent = "—";
       btn.disabled = true;
       return;
     }
@@ -80,7 +81,23 @@ function detectSubreddit() {
     subreddit = match[1];
     el.textContent = `r/${subreddit}`;
     btn.disabled = false;
+    loadFollowerCount(subreddit);
   });
+}
+
+async function loadFollowerCount(name) {
+  const count = document.getElementById("follower-count");
+  try {
+    const response = await fetch(`https://www.reddit.com/r/${encodeURIComponent(name)}/about.json`);
+    if (!response.ok) throw new Error(`Community details: ${response.status}`);
+    const body = await response.json();
+    const subscribers = body?.data?.subscribers;
+    count.textContent = Number.isFinite(subscribers)
+      ? subscribers.toLocaleString()
+      : "Unavailable";
+  } catch {
+    count.textContent = "Unavailable";
+  }
 }
 
 async function onAnalyze() {
@@ -90,12 +107,13 @@ async function onAnalyze() {
   const analyzeBtnLabel = document.getElementById("analyzeBtnLabel");
   const spinner = analyzeBtn.querySelector(".button-spinner");
   const results = document.getElementById("results");
+  const communityStats = document.getElementById("community-stats");
   const heatmapContainer = document.getElementById("heatmap-container");
   const evidenceCards = document.getElementById("evidence-cards");
   const commentsChartContainer = document.getElementById("comments-chart-container");
 
   setLoading(true);
-
+  const activityPromise = readWeeklyActivity(subreddit);
   try {
     // ✅ Better: use /top.json with limit=100 + after pagination
     const posts = await fetchPosts(subreddit, {
@@ -106,14 +124,23 @@ async function onAnalyze() {
 
     const analysis = analyze(posts);
     heatmapContainer.style.display = "block";
-    commentsChartContainer.style.display = "block";
     renderHeatmap(analysis);
     renderEvidenceCards(posts, analysis);
-    renderCommentsAreaChart(posts);
+    if (commentsChartContainer) {
+      commentsChartContainer.style.display = "block";
+      renderCommentsAreaChart(posts);
+    }
+    const activity = await activityPromise;
+    document.getElementById("weekly-visitors").textContent =
+      activity.weeklyVisitors ?? "Unavailable";
+    document.getElementById("weekly-contributions").textContent =
+      activity.weeklyContributions ?? "Unavailable";
+    communityStats.style.display = "grid";
   } catch (err) {
+    communityStats.style.display = "none";
     heatmapContainer.style.display = "none";
     evidenceCards.style.display = "none";
-    commentsChartContainer.style.display = "none";
+    if (commentsChartContainer) commentsChartContainer.style.display = "none";
     results.textContent = `Error: ${err?.message || String(err)}`;
   } finally {
     setLoading(false);
@@ -126,10 +153,64 @@ async function onAnalyze() {
     spinner.hidden = !isLoading;
     if (isLoading) results.textContent = "";
     if (isLoading) {
+      communityStats.style.display = "none";
       heatmapContainer.style.display = "none";
       evidenceCards.style.display = "none";
-      commentsChartContainer.style.display = "none";
+      if (commentsChartContainer) commentsChartContainer.style.display = "none";
     }
+  }
+}
+
+async function readWeeklyActivity(name) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url) return {};
+    const url = new URL(tab.url);
+    const pageSubreddit = url.pathname.match(/^\/r\/([^/]+)/i)?.[1];
+    if (url.hostname !== "www.reddit.com" && url.hostname !== "reddit.com") return {};
+    if (pageSubreddit?.toLowerCase() !== name.toLowerCase()) return {};
+
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async () => {
+        const read = () => {
+          const value = (slot) => {
+            const element = document.querySelector(`shreddit-subreddit-header [slot="${slot}"]`)
+              || document.querySelector(`[slot="${slot}"]`);
+            const text = element?.textContent?.trim();
+            return text && /^\d[\d,.]*\s*[KMB]?\+?$/i.test(text) ? text : null;
+          };
+          return {
+            weeklyVisitors: value("weekly-active-users-count"),
+            weeklyContributions: value("weekly-contributions-count"),
+          };
+        };
+
+        const initial = read();
+        if (initial.weeklyVisitors && initial.weeklyContributions) return initial;
+        await new Promise((resolve) => {
+          const observer = new MutationObserver(() => {
+            const current = read();
+            if (current.weeklyVisitors && current.weeklyContributions) finish();
+          });
+          const timer = setTimeout(finish, 2500);
+          function finish() {
+            observer.disconnect();
+            clearTimeout(timer);
+            resolve();
+          }
+          observer.observe(document.documentElement, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+          });
+        });
+        return read();
+      },
+    });
+    return injection?.result || {};
+  } catch {
+    return {};
   }
 }
 
@@ -224,11 +305,13 @@ function buildHourlyCommentMedians(posts) {
 }
 
 function renderCommentsAreaChart(posts) {
+  const chartElement = document.querySelector("#comments-chart");
+  if (!chartElement) return;
   const { medians, counts } = buildHourlyCommentMedians(posts);
 
   if (commentsChart) commentsChart.destroy();
 
-  commentsChart = new ApexCharts(document.querySelector("#comments-chart"), {
+  commentsChart = new ApexCharts(chartElement, {
     series: [{ name: "Median comments", data: medians }],
     chart: {
       height: 235,
